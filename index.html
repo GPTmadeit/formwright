@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Formwright</title>
+    <link rel="icon" href="/icon.svg" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand"><img src="/icon.svg" alt="" width="22" height="22" /> Formwright</div>
+      <div class="menu-wrap">
+        <button class="btn" id="file-btn" aria-haspopup="menu">File ▾</button>
+        <div class="menu" id="file-menu" role="menu" hidden>
+          <button role="menuitem" data-act="new">New scene</button>
+          <button role="menuitem" data-act="open">Open… <kbd>Ctrl O</kbd></button>
+          <button role="menuitem" data-act="save">Save… <kbd>Ctrl S</kbd></button>
+          <hr />
+          <button role="menuitem" data-act="export-stl">Export STL (for printing)</button>
+          <button role="menuitem" data-act="export-obj">Export OBJ</button>
+        </div>
+      </div>
+      <div class="seg">
+        <button class="btn icon" id="undo" title="Undo (Ctrl Z)">↶</button>
+        <button class="btn icon" id="redo" title="Redo (Ctrl Shift Z)">↷</button>
+      </div>
+      <div class="seg" role="radiogroup" aria-label="Transform tool">
+        <button class="btn on" data-mode="translate" title="Move (W)">Move</button>
+        <button class="btn" data-mode="rotate" title="Rotate (E)">Rotate</button>
+        <button class="btn" data-mode="scale" title="Scale (R)">Scale</button>
+      </div>
+      <label class="snap">Snap
+        <select id="snap">
+          <option value="0">Off</option>
+          <option value="0.5">0.5 mm</option>
+          <option value="1" selected>1 mm</option>
+          <option value="5">5 mm</option>
+          <option value="10">10 mm</option>
+        </select>
+      </label>
+      <div class="seg">
+        <button class="btn" data-view="iso" title="Home view">Home</button>
+        <button class="btn" data-view="top">Top</button>
+        <button class="btn" data-view="front">Front</button>
+        <button class="btn" data-view="right">Right</button>
+        <button class="btn" id="fit" title="Fit selection (F)">Fit</button>
+      </div>
+      <div class="spacer"></div>
+      <span class="update-pill" id="update-pill" hidden></span>
+      <button class="btn" id="settings-btn">Settings</button>
+    </header>
+
+    <main class="layout">
+      <aside class="left panel">
+        <section>
+          <h2>Shapes</h2>
+          <p class="hint">Click to add, or drag onto the workplane.</p>
+          <div class="palette" id="palette"></div>
+        </section>
+        <section class="tree-section">
+          <h2>Objects</h2>
+          <div class="tree" id="tree" role="tree"></div>
+        </section>
+      </aside>
+
+      <section class="stage">
+        <div class="viewport" id="viewport"></div>
+        <div class="inspector" id="inspector" hidden></div>
+        <div class="toast" id="toast" role="status" aria-live="polite"></div>
+        <div class="axes-hint">X <span class="x">━</span> Y <span class="y">━</span> Z <span class="z">━</span> · mm</div>
+      </section>
+
+      <aside class="right panel chat">
+        <div class="chat-head">
+          <h2>Assistant</h2>
+          <span class="status" id="chat-status"></span>
+          <button class="btn small" id="chat-new" title="Start a new conversation">New chat</button>
+        </div>
+        <div class="chat-log" id="chat-log" aria-live="polite"></div>
+        <form class="chat-input" id="chat-form">
+          <textarea id="chat-text" rows="3" placeholder="Describe what to make, e.g. “a phone stand with a cable slot”"></textarea>
+          <div class="chat-actions">
+            <span class="usage" id="usage"></span>
+            <button type="button" class="btn danger" id="chat-stop" hidden>Stop</button>
+            <button type="submit" class="btn primary" id="chat-send">Send</button>
+          </div>
+        </form>
+      </aside>
+    </main>
+
+    <dialog id="settings">
+      <form method="dialog" class="settings">
+        <h2>Settings</h2>
+        <label>Anthropic API key
+          <input type="password" id="set-key" autocomplete="off" spellcheck="false" placeholder="sk-ant-…" />
+        </label>
+        <p class="hint">Stored only on this computer. Get a key at console.anthropic.com. API usage is billed by Anthropic to your account.</p>
+        <label>Model
+          <select id="set-model">
+            <option value="claude-opus-5-5">Claude Opus 5.5 (best results)</option>
+            <option value="claude-sonnet-5-5">Claude Sonnet 5.5 (faster, cheaper)</option>
+            <option value="claude-haiku-5-5">Claude Haiku 5.5 (fastest, cheapest)</option>
+          </select>
+        </label>
+        <label>Thinking effort
+          <select id="set-effort">
+            <option value="low">Low: quick edits</option>
+            <option value="medium">Medium: recommended</option>
+            <option value="high">High: complex objects</option>
+            <option value="xhigh">Extra high</option>
+          </select>
+        </label>
+        <div class="dialog-actions">
+          <button value="cancel" class="btn">Cancel</button>
+          <button value="ok" class="btn primary" id="set-save">Save</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,136 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write # publish releases on tags
+
+env:
+  # Signs desktop updates. Absent on forks/PRs, where signing is skipped.
+  TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+  TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: System libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev librsvg2-dev libfuse2t64 xdg-utils
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - name: UI flows (headless Chrome, scripted mock API)
+        run: CHROME=google-chrome node test/ui/run.mjs
+      - name: Desktop AppImage
+        run: |
+          if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ]; then extra="--config src-tauri/tauri.updater.conf.json"; fi
+          npx tauri build --bundles appimage,deb $extra
+      - name: Collect
+        run: |
+          mkdir dist-release
+          cp src-tauri/target/release/bundle/appimage/*.AppImage* src-tauri/target/release/bundle/deb/*.deb dist-release/
+          ls -la dist-release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-linux
+          path: dist-release/
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+      - run: npm test
+      - name: Desktop installers
+        shell: bash
+        run: |
+          if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ]; then extra="--config src-tauri/tauri.updater.conf.json"; fi
+          npx tauri build $extra
+      - name: Collect
+        shell: bash
+        run: |
+          mkdir dist-release
+          cp src-tauri/target/release/bundle/nsis/*-setup.exe* src-tauri/target/release/bundle/msi/*.msi* dist-release/
+          ls -la dist-release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-windows
+          path: dist-release/
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+      - name: Desktop app (Apple Silicon)
+        run: |
+          if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ]; then extra="--config src-tauri/tauri.updater.conf.json"; fi
+          npx tauri build --bundles app,dmg $extra
+      - name: Collect
+        run: |
+          mkdir dist-release
+          cp src-tauri/target/release/bundle/dmg/*.dmg dist-release/
+          if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            for f in src-tauri/target/release/bundle/macos/*.app.tar.gz*; do
+              cp "$f" "dist-release/$(basename "$f" | sed 's/\.app\.tar\.gz/_aarch64.app.tar.gz/')"
+            done
+          fi
+          ls -la dist-release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-macos
+          path: dist-release/
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [linux, windows, macos]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist-release
+          merge-multiple: true
+      - name: Updater manifest
+        run: python3 scripts/latest_json.py "${GITHUB_REF_NAME}" dist-release > dist-release/latest.json && cat dist-release/latest.json
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist-release/* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" dist-release/* --title "Formwright ${GITHUB_REF_NAME#v}" --generate-notes
+          fi
