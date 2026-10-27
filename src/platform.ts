@@ -99,26 +99,57 @@ export async function openTextFile(filter: FileFilter): Promise<{ name: string; 
 
 export interface UpdateInfo {
   version: string;
+  /** Desktop: download, verify, install and restart. Android: open the APK download. */
   install(): Promise<void>;
 }
 
-/** Checks GitHub releases for a newer signed build (desktop only). */
+const REPO = "GPTmadeit/formwright";
+const isAndroid = typeof navigator !== "undefined" && /Android/i.test(navigator.userAgent);
+
+/** Where this copy is running. The web version is always the latest deploy. */
+export const platform: "desktop" | "android" | "web" = isTauri ? (isAndroid ? "android" : "desktop") : "web";
+
+function isNewer(a: string, b: string): boolean {
+  const parse = (v: string) => v.replace(/^v/, "").split(/[.+-]/).slice(0, 3).map((x) => parseInt(x, 10) || 0);
+  const [x, y] = [parse(a), parse(b)];
+  for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] > y[i];
+  return false;
+}
+
+/** Android can't self-install, so find a newer APK on GitHub and let the system install it. */
+async function checkAndroidUpdate(): Promise<UpdateInfo | null> {
+  const { getVersion } = await import("@tauri-apps/api/app");
+  const current = await getVersion();
+  const res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, { headers: { Accept: "application/vnd.github+json" } });
+  if (!res.ok) return null;
+  const rel = (await res.json()) as { tag_name: string; assets: { name: string; browser_download_url: string }[] };
+  const apk = rel.assets.find((a) => a.name.endsWith(".apk"));
+  if (!apk || !isNewer(rel.tag_name, current)) return null;
+  return {
+    version: rel.tag_name.replace(/^v/, ""),
+    async install() {
+      const { openUrl } = await import("@tauri-apps/plugin-opener");
+      await openUrl(apk.browser_download_url);
+    },
+  };
+}
+
+/** Checks GitHub releases for a newer build of the app. */
 export async function checkForUpdate(): Promise<UpdateInfo | null> {
-  if (!isTauri) return null;
   try {
-    const { check } = await import("@tauri-apps/plugin-updater");
-    const update = await check();
-    if (!update) return null;
-    return {
-      version: update.version,
-      async install() {
-        await update.downloadAndInstall();
-        const { relaunch } = await import("@tauri-apps/plugin-process");
-        await relaunch();
-      },
-    };
+    if (platform === "web") return null;
+    if (platform === "android") return await checkAndroidUpdate();
+    const version = await invoke<string | null>("update_check");
+    return version ? { version, install: () => invoke("update_install") } : null;
   } catch (err) {
     console.warn("update check failed", err);
     return null;
   }
+}
+
+/** The running version, for the settings dialog. */
+export async function appVersion(): Promise<string> {
+  if (!isTauri) return __APP_VERSION__;
+  const { getVersion } = await import("@tauri-apps/api/app");
+  return getVersion();
 }

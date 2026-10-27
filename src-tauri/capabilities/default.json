@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Main window: core APIs, file dialogs, updates, relaunch, and HTTP to local model servers.",
+  "description": "Main window: core APIs, file dialogs, HTTP to local model servers, and opening release downloads.",
   "windows": [
     "main"
   ],
@@ -9,8 +9,6 @@
     "core:default",
     "dialog:allow-open",
     "dialog:allow-save",
-    "updater:default",
-    "process:allow-restart",
     {
       "identifier": "http:default",
       "allow": [
@@ -22,6 +20,14 @@
         },
         {
           "url": "http://*:11434/*"
+        }
+      ]
+    },
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        {
+          "url": "https://github.com/GPTmadeit/formwright/*"
         }
       ]
     }
