@@ -128,13 +128,19 @@
           </label>
         </div>
         <div data-for="local" hidden>
-          <p class="hint">Runs on your own computer with <strong>Ollama</strong> (ollama.com), so it costs nothing. Install it, then run <code>ollama pull qwen3-coder</code>, or pull any model that supports tool calling. Local models are slower and less careful than Claude, and can't look at the model to check their work.</p>
-          <label>Server address
-            <input id="set-local-url" spellcheck="false" placeholder="http://localhost:11434" />
-          </label>
-          <label>Model name
-            <input id="set-local-model" spellcheck="false" placeholder="qwen3-coder" />
-          </label>
+          <p class="hint">Runs privately on your own computer, free. Local models are slower and make more mistakes than Claude, so check what they build. For the most accurate designs, use Claude.</p>
+          <div class="local-status" id="local-status" role="status"></div>
+          <div class="tiers" id="local-tiers"></div>
+          <label class="check"><input type="checkbox" id="set-local-think" /> Think before each step (more careful, much slower without a graphics card)</label>
+          <details class="advanced" id="local-advanced">
+            <summary>Use another Ollama server</summary>
+            <label>Server address
+              <input id="set-local-url" spellcheck="false" placeholder="http://localhost:11434" />
+            </label>
+            <label>Model name
+              <input id="set-local-model" spellcheck="false" placeholder="qwen3.5:4b" />
+            </label>
+          </details>
         </div>
         <label data-for="anthropic">Thinking effort
           <select id="set-effort">

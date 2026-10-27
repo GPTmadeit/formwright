@@ -6,9 +6,10 @@ import { toBinarySTL, toOBJ } from "./geom/export";
 import { Doc } from "./model/doc";
 import { rotateNodes, scaleNodes } from "./model/transform";
 import type { SceneDoc, Vec3 } from "./model/types";
-import { checkForUpdate, loadSettings, localFetch, openTextFile, saveFile, saveSettings } from "./platform";
+import { checkForUpdate, loadSettings, localAI, localFetch, openTextFile, saveFile, saveSettings } from "./platform";
 import { ChatView } from "./ui/chat";
 import { Inspector } from "./ui/inspector";
+import { LocalAiPanel } from "./ui/local-ai";
 import { DRAG_MIME, renderPalette, type PaletteItem } from "./ui/palette";
 import { renderTree } from "./ui/tree";
 import { Viewport, type GizmoMode, type ViewName } from "./view/viewport";
@@ -329,6 +330,7 @@ const agent = new Agent(
   chat,
   () => settings,
   localFetch,
+  localAI.available ? () => localAI.start() : undefined,
 );
 
 function sendChat(text: string): void {
@@ -366,10 +368,29 @@ function showProvider(p: Provider): void {
   provider = p;
   dlg.querySelectorAll<HTMLButtonElement>("[data-provider]").forEach((b) => b.classList.toggle("on", b.dataset.provider === p));
   dlg.querySelectorAll<HTMLElement>("[data-for]").forEach((el) => (el.hidden = el.dataset.for !== p));
+  if (p === "local" && dlg.open) void localPanel.refresh();
 }
 dlg.querySelectorAll<HTMLButtonElement>("[data-provider]").forEach((b) => b.addEventListener("click", () => showProvider(b.dataset.provider as Provider)));
+const localPanel = new LocalAiPanel($("local-status"), $("local-tiers"), () => ({ provider, localModel: settings.localModel }), async (model, url) => {
+  provider = "local";
+  settings = { ...settings, provider: "local", localModel: model, localURL: url };
+  $<HTMLInputElement>("set-local-model").value = model;
+  $<HTMLInputElement>("set-local-url").value = url;
+  await saveSettings(settings);
+  toast(`Local model ready: ${model}`);
+  void agent.warmUp();
+});
+if (!localAI.available) {
+  // No one-click install outside the desktop app: point at a server instead.
+  $("local-tiers").hidden = true;
+  $("local-status").textContent = "One-click install is in the desktop app. Here you can use Ollama running on this computer.";
+  ($("local-advanced") as HTMLDetailsElement).open = true;
+}
+
 function openSettings(): void {
   showProvider(settings.provider);
+  $<HTMLInputElement>("set-local-think").checked = !!settings.localThinking;
+  void localPanel.refresh();
   $<HTMLInputElement>("set-local-url").value = settings.localURL;
   $<HTMLInputElement>("set-local-model").value = settings.localModel;
   $<HTMLInputElement>("set-key").value = settings.apiKey;
@@ -387,11 +408,13 @@ dlg.addEventListener("close", async () => {
     effort: $<HTMLSelectElement>("set-effort").value as Effort,
     provider,
     localURL: $<HTMLInputElement>("set-local-url").value.trim() || "http://localhost:11434",
-    localModel: $<HTMLInputElement>("set-local-model").value.trim() || "qwen3-coder",
+    localModel: $<HTMLInputElement>("set-local-model").value.trim() || "qwen3.5:4b",
+    localThinking: $<HTMLInputElement>("set-local-think").checked,
   };
   try {
     await saveSettings(settings);
     toast("Settings saved");
+    void agent.warmUp();
   } catch (err) {
     toast(`Couldn't save settings: ${(err as Error).message}`);
   }
@@ -408,6 +431,9 @@ viewport.sync();
 refreshPanels();
 viewport.setView("iso");
 chatText.focus();
+
+// Have a local model read its instructions before the first request needs them.
+if (settings.provider === "local") void agent.warmUp();
 
 void checkForUpdate().then((u) => {
   if (!u) return;

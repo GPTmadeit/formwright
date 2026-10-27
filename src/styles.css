@@ -248,7 +248,7 @@ select, input, textarea {
 .chat-actions .usage { color: var(--muted); font-size: 11px; margin-right: auto; }
 
 /* --- dialog ------------------------------------------------------------- */
-dialog { border: 1px solid var(--border); border-radius: 12px; background: var(--panel); color: var(--text); box-shadow: var(--shadow); padding: 0; width: min(440px, calc(100vw - 32px)); }
+dialog { border: 1px solid var(--border); border-radius: 12px; background: var(--panel); color: var(--text); box-shadow: var(--shadow); padding: 0; width: min(480px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow: auto; }
 dialog::backdrop { background: rgba(10, 15, 25, 0.4); }
 .settings { padding: 18px; display: flex; flex-direction: column; gap: 10px; }
 .settings h2 { font-size: 14px; text-transform: none; letter-spacing: 0; color: var(--text); }
@@ -256,6 +256,21 @@ dialog::backdrop { background: rgba(10, 15, 25, 0.4); }
 .settings .provider .btn { flex: 1; }
 .settings > div[data-for] { display: flex; flex-direction: column; gap: 10px; }
 .settings code { font: 12px ui-monospace, monospace; background: var(--panel-2); padding: 1px 4px; border-radius: 4px; }
+.settings .check { flex-direction: row; align-items: center; gap: 8px; }
+.local-status { font-size: 12px; color: var(--muted); }
+.local-status.error { color: var(--danger); }
+.tiers { display: flex; flex-direction: column; gap: 8px; }
+.tier { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: center; }
+.tier.selected { border-color: var(--accent); background: var(--accent-soft); }
+.tier .name { font-weight: 600; display: flex; gap: 6px; align-items: center; }
+.tier .badge { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; background: var(--accent); color: #fff; border-radius: 999px; padding: 1px 7px; }
+.tier .meta, .tier .scores { font-size: 11px; color: var(--muted); grid-column: 1; }
+.tier .blurb { font-size: 12px; grid-column: 1; }
+.tier .btn { grid-row: 1 / span 3; grid-column: 2; }
+.tier progress { grid-column: 1 / -1; width: 100%; height: 6px; margin-top: 6px; accent-color: var(--accent); }
+.tier .pstatus { grid-column: 1 / -1; font-size: 11px; color: var(--muted); }
+.advanced summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+.advanced[open] { display: flex; flex-direction: column; gap: 8px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
 
 @media (max-width: 1100px) {

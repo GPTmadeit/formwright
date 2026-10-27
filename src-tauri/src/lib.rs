@@ -63,6 +63,9 @@ fn read_text_file<R: Runtime>(app: AppHandle<R>, path: String) -> Result<String,
     Ok(text)
 }
 
+#[cfg(desktop)]
+mod local_ai;
+
 /// Desktop updates come from the signed `latest.json` on GitHub releases.
 /// (Android checks GitHub from the webview and hands the APK to the system.)
 #[cfg(desktop)]
@@ -102,17 +105,31 @@ pub fn run() {
     let builder = builder
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(update::Pending::default())
+        .manage(local_ai::LocalAi::default())
         .invoke_handler(tauri::generate_handler![
             load_settings,
             save_settings,
             write_file,
             read_text_file,
             update::update_check,
-            update::update_install
+            update::update_install,
+            local_ai::local_ai_status,
+            local_ai::local_ai_install,
+            local_ai::local_ai_start,
+            local_ai::local_ai_pull,
+            local_ai::local_ai_remove,
+            local_ai::local_ai_cancel
         ]);
     #[cfg(mobile)]
     let builder = builder.invoke_handler(tauri::generate_handler![load_settings, save_settings, write_file, read_text_file]);
-    builder.run(tauri::generate_context!()).expect("error while running Formwright");
+    let app = builder.build(tauri::generate_context!()).expect("error while building Formwright");
+    app.run(|_app, _event| {
+        // Don't leave a local AI server we started running after the app quits.
+        #[cfg(desktop)]
+        if let tauri::RunEvent::Exit = _event {
+            _app.state::<local_ai::LocalAi>().shutdown();
+        }
+    });
 }
 
 #[cfg(test)]

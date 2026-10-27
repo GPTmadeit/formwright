@@ -11,7 +11,7 @@ Build with shapes and holes, like Tinkercad, or describe what you want and watch
 - **Shapes:** box (with rounded edges), cylinder, cone, sphere, torus, wedge, tube, polygon extrusion, revolve (lathe profile).
 - **Holes and groups:** mark any shape as a hole, then group it with solids to cut it out. Groups nest, move and rotate as one object.
 - **Direct editing:** move, rotate and scale gizmo with snapping, exact numbers in the inspector, arrow-key nudging, undo and redo.
-- **Assistant:** Claude, or a free local model through Ollama. It streams progress notes, shows each step as a clickable chip, takes interjections between steps, checks its own work by looking at rendered views, and makes every step undoable.
+- **Assistant:** Claude, or a free local model installed with one click. It streams progress notes, shows each step as a clickable chip, takes interjections between steps, checks its own work by looking at rendered views, and makes every step undoable.
 - **Export:** STL for 3D printing and OBJ. Scenes save as `.formwright` (JSON).
 - **Runs everywhere:** Windows, macOS, Linux (x64 and ARM), Android, and in the browser for iPhone, iPad and anything else. Installed copies update themselves.
 
@@ -41,12 +41,27 @@ On phones and tablets, the panels open from the tab bar at the bottom. Tap a sha
 
 ## The assistant
 
-Open **Settings** and choose how the assistant runs:
+Open **Settings** and choose how the assistant runs.
 
-- **Claude (Anthropic API):** the best results. Paste an API key from [console.anthropic.com](https://console.anthropic.com/) and pick a model and effort level. The key is stored only on your computer, in your user config directory, readable only by you. Anthropic bills your account for usage.
-- **Local model (free):** runs on your own machine through [Ollama](https://ollama.com). Install Ollama, run `ollama pull qwen3-coder` (or pull any model with tool calling), and enter the model name. It's slower and less precise than Claude, and it can't look at renders to check its work, but it costs nothing and nothing leaves your computer. Pointing it at another machine's Ollama (`http://<host>:11434`) also works in the desktop and Android apps. The web version can only reach Ollama on the same computer, and Ollama has to allow it: start Ollama with `OLLAMA_ORIGINS=https://gptmadeit.github.io`.
+**Claude (Anthropic API)** gives the most accurate designs. Paste an API key from [console.anthropic.com](https://console.anthropic.com/) and pick a model and effort level. The key is stored only on your computer, readable only by you, and Anthropic bills your account for usage.
 
-Everything except the assistant works with neither.
+**Local model (free)** runs privately on your own computer. In the desktop app, pick a tier and click *Install*; it downloads and runs [Ollama](https://ollama.com) for you (or uses yours if it's already installed) and fetches the model:
+
+| Tier | Model | Download | Memory | Function calling (BFCL-V4) | Multi-step tool use (τ²-bench) |
+| --- | --- | --- | --- | --- | --- |
+| Light | Qwen3.5 4B | 3.3 GB | 8 GB | 50.3 | 79.9 |
+| Better | Qwen3.5 9B | 6.6 GB | 16 GB | 66.1 | 79.1 |
+| Best local | Qwen3.5 35B-A3B | 22 GB | 32 GB | 67.3 | 81.2 |
+
+Scores are the publisher's. Settings marks the best fit for your computer. Without a graphics card the processor does all the work, so a model is much slower than on a recent laptop or a Mac: on an older 4-core PC, the light model writes about 3 words a second. No model, local or cloud, gets every design right: check what it builds, and use Claude when accuracy matters most.
+
+The app keeps local models quick by switching off their step-by-step "thinking" (turn it back on in Settings for harder jobs, at a big cost in speed) and by having the model read its instructions in the background before your first request.
+
+To measure models on your own hardware: `EVAL_MODELS=qwen3.5:4b,qwen3.5:9b npm run eval:local` builds a set of test parts with each model through the real assistant and checks the geometry.
+
+The web version can't install anything, but it can use Ollama on the same computer if you start Ollama with `OLLAMA_ORIGINS=https://gptmadeit.github.io`. The Android app can use Ollama running on another machine on your network (`http://<that computer>:11434`).
+
+Everything except the assistant works without either.
 
 ## Shortcuts
 

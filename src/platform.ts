@@ -16,7 +16,8 @@ export const DEFAULT_SETTINGS: AgentSettings = {
   model: "claude-opus-5-5",
   effort: "medium",
   localURL: "http://localhost:11434",
-  localModel: "qwen3-coder",
+  localModel: "qwen3.5:4b",
+  localThinking: false,
 };
 
 /** fetch for local model servers. On desktop it goes through Rust, so CORS never applies. */
@@ -153,3 +154,40 @@ export async function appVersion(): Promise<string> {
   const { getVersion } = await import("@tauri-apps/api/app");
   return getVersion();
 }
+
+// --- local AI (desktop) ----------------------------------------------------------
+
+export interface LocalAiStatus {
+  running: boolean;
+  installed: boolean;
+  managed: boolean;
+  version: string | null;
+  models: { name: string; size: number }[];
+  ramGb: number;
+  gpu: string | null;
+  url: string;
+}
+
+export interface LocalAiProgress {
+  stage: "engine" | "model";
+  status: string;
+  done: number;
+  total: number;
+}
+
+/** One-click install and management of local models. Desktop only. */
+export const localAI = {
+  available: platform === "desktop",
+  status: () => invoke<LocalAiStatus>("local_ai_status"),
+  /** Installs the engine if this computer has none. */
+  install: () => invoke<void>("local_ai_install"),
+  /** Starts the engine if it isn't running. */
+  start: () => invoke<void>("local_ai_start"),
+  pull: (model: string) => invoke<void>("local_ai_pull", { model }),
+  remove: (model: string) => invoke<void>("local_ai_remove", { model }),
+  cancel: () => invoke<void>("local_ai_cancel"),
+  async onProgress(fn: (p: LocalAiProgress) => void): Promise<() => void> {
+    const { listen } = await import("@tauri-apps/api/event");
+    return listen<LocalAiProgress>("local-ai-progress", (e) => fn(e.payload));
+  },
+};

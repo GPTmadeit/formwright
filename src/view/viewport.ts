@@ -90,6 +90,8 @@ export class Viewport {
       } else this.commitGizmo();
     });
     this.gizmo.addEventListener("objectChange", () => this.previewGizmo());
+    // Hovering or dragging a gizmo handle changes how it's drawn.
+    this.gizmo.addEventListener("change", () => this.invalidate());
 
     this.scene.add(new THREE.HemisphereLight(0xffffff, 0x8899aa, 1.6));
     const sun = new THREE.DirectionalLight(0xffffff, 1.6);
@@ -136,6 +138,7 @@ export class Viewport {
   }
 
   applyTheme(): void {
+    this.invalidate();
     this.scene.background = new THREE.Color(cssVar("--viewport-bg", "#eef1f5"));
     const minor = new THREE.Color(cssVar("--grid-minor", "#d5dbe3"));
     const major = new THREE.Color(cssVar("--grid-major", "#aab4c2"));
@@ -189,6 +192,7 @@ export class Viewport {
   }
 
   private resize(): void {
+    this.invalidate();
     const w = this.host.clientWidth || 1;
     const h = this.host.clientHeight || 1;
     this.renderer.setSize(w, h, false);
@@ -200,6 +204,7 @@ export class Viewport {
 
   private frame(): void {
     const now = performance.now();
+    const animating = !!this.camAnim || [...this.items.values()].some((it) => it.born);
     if (this.camAnim) {
       const t = Math.min(1, (now - this.camAnim.start) / 500);
       const e = 1 - Math.pow(1 - t, 3);
@@ -217,14 +222,24 @@ export class Viewport {
       mat.emissiveIntensity = 0.55 * (1 - t);
       if (t >= 1) it.born = 0;
     }
-    this.orbit.update();
+    // Draw only when something changed: an idle viewport costs no CPU.
+    if (this.orbit.update() || animating) this.dirty = true;
+    if (!this.dirty) return;
+    this.dirty = false;
     this.renderer.render(this.scene, this.camera);
+  }
+
+  private dirty = true;
+  /** Asks for a redraw on the next frame. */
+  invalidate(): void {
+    this.dirty = true;
   }
 
   // --- scene sync ----------------------------------------------------------
 
   /** Rebuilds meshes for changed top-level nodes. `created` ids pop in. */
   sync(created: string[] = []): void {
+    this.invalidate();
     const roots = this.doc.roots();
     const live = new Set(roots.map((r) => r.id));
     for (const [id, it] of this.items) {
@@ -303,6 +318,7 @@ export class Viewport {
   // --- selection & gizmo -----------------------------------------------------
 
   setSelection(ids: string[]): void {
+    this.invalidate();
     this.selection = ids;
     const sel = new Set(ids);
     for (const it of this.items.values()) {
@@ -364,6 +380,7 @@ export class Viewport {
   }
 
   setGizmoMode(mode: GizmoMode): void {
+    this.invalidate();
     this.gizmo.setMode(mode);
     // Scaling only makes sense in the shape's own axes.
     this.gizmo.setSpace(mode === "translate" ? "world" : "local");

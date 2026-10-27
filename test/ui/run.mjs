@@ -133,6 +133,7 @@ await waitFor(() => evaluate(`__formwright.agent.isRunning`), "agent starts");
 check(!(await evaluate(`document.getElementById("chat-stop").hidden`)), "stop button shows while working");
 await waitFor(() => requests.length >= 2, "second request");
 await shot("03-building");
+const interjectAt = requests.length; // the request after this one should carry it
 await send("make it red");
 check((await evaluate(`!!document.querySelector(".msg.user.queued")`)) === true, "interjection is queued while busy");
 await waitFor(() => evaluate(`!__formwright.agent.isRunning`), "agent finishes", 20000);
@@ -148,7 +149,7 @@ check(String(requests[0].headers["anthropic-beta"]).includes("thinking-display-u
 check(r0.tools.every((t) => t.eager_input_streaming === true), "eager input streaming on every tool");
 check(JSON.stringify(r0.messages[0].content).includes("<scene>"), "first message carries the scene");
 const interjected = requests.findIndex((r) => JSON.stringify(r.body.messages.at(-1)).includes("make it red"));
-check(interjected === 2, `interjection delivered at the next step (request ${interjected})`);
+check(interjected === interjectAt, `interjection delivered at the next step (request ${interjected}, expected ${interjectAt})`);
 const snap = requests.find((r) => JSON.stringify(r.body.messages.at(-1)).includes('"type":"image"'));
 check(!!snap, "view_snapshot returns an image to the model");
 if (snap) {
@@ -197,7 +198,7 @@ await waitFor(() => requests.length > localStart, "local request");
 const lr = requests[localStart];
 check(lr.body.model === "qwen3-coder", "local mode uses the local model name");
 check(!lr.url.includes("beta") && !lr.headers["anthropic-beta"], "local mode sends no beta flags");
-check(!("thinking" in lr.body) && !("cache_control" in lr.body) && !("fallbacks" in lr.body), "local mode sends a plain request");
+check(lr.body.thinking?.type === "disabled" && !("cache_control" in lr.body) && !("fallbacks" in lr.body), "local mode sends a plain request, thinking off");
 check(!lr.body.tools.some((t) => t.name === "view_snapshot"), "local mode drops the snapshot tool");
 await waitFor(() => evaluate(`!__formwright.agent.isRunning`), "local run finishes", 20000);
 check((await evaluate(`__formwright.doc.roots().length`)) >= 1, "local model can build shapes");
@@ -220,9 +221,11 @@ await cdp("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints:
 await cdp("Page.reload");
 await waitFor(() => evaluate("!!window.__formwright"), "reboot as a phone");
 await evaluate(`__formwright.doc.clear(); __formwright.select([]); true`);
-const visible = (sel) => evaluate(`(() => { const e = document.querySelector(${JSON.stringify(sel)}); if (!e) return false; const r = e.getBoundingClientRect(); return getComputedStyle(e).visibility === "visible" && r.height > 0 && r.top < innerHeight && r.bottom > 0; })()`);
+const visibleNow = (sel) => evaluate(`(() => { const e = document.querySelector(${JSON.stringify(sel)}); if (!e) return false; const r = e.getBoundingClientRect(); return getComputedStyle(e).visibility === "visible" && r.height > 0 && r.top < innerHeight && r.bottom > 0; })()`);
+// Sheets slide in; under load (or software rendering) that takes a while.
+const visible = (sel, want = true) => waitFor(async () => (await visibleNow(sel)) === want, `${sel} visible=${want}`, 4000).then(() => want, () => !want);
 check(await visible("#tabbar"), "phone: tab bar shows");
-check(!(await visible(".left")) && !(await visible(".chat")), "phone: panels start closed");
+check(!(await visible(".left", false)) && !(await visible(".chat", false)), "phone: panels start closed");
 check((await evaluate(`document.getElementById("tab-edit").disabled`)) === true, "phone: Edit is disabled with nothing selected");
 await evaluate(`document.querySelector('[data-sheet="shapes"]').click(); true`);
 await sleep(300);
@@ -241,7 +244,7 @@ check(sheetFits, "phone: Edit sheet sits above the tab bar");
 await shot("08-phone-edit");
 await evaluate(`document.querySelector("#inspector [data-close]").click(); true`);
 await sleep(300);
-check(!(await visible("#inspector")), "phone: close button hides the sheet");
+check(!(await visible("#inspector", false)), "phone: close button hides the sheet");
 await evaluate(`document.querySelector('[data-sheet="chat"]').click(); true`);
 await sleep(300);
 check(await visible(".chat"), "phone: Assistant sheet opens");

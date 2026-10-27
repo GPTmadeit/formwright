@@ -202,7 +202,7 @@ jobs:
           out="dist-release/Formwright_${version}_android.apk"
           if [ -n "$ANDROID_KEYSTORE_B64" ]; then
             echo "$ANDROID_KEYSTORE_B64" | base64 -d > release.jks
-            "$tools/apksigner" sign --ks release.jks --ks-key-alias formwright --ks-pass env:ANDROID_KEYSTORE_PASSWORD --out "$out" aligned.apk
+            "$tools/apksigner" sign --v4-signing-enabled false --ks release.jks --ks-key-alias formwright --ks-pass env:ANDROID_KEYSTORE_PASSWORD --out "$out" aligned.apk
             "$tools/apksigner" verify --print-certs "$out" | grep -i "sha-256"
             rm release.jks
           else

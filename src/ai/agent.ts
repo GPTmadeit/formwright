@@ -14,6 +14,8 @@ export interface AgentSettings {
   effort: Effort;
   localURL: string;
   localModel: string;
+  /** Local models: reason before each step. More careful, much slower on a CPU. */
+  localThinking?: boolean;
   /** Optional API endpoint override (a proxy, or the test server). */
   baseURL?: string;
 }
@@ -81,6 +83,8 @@ export class Agent {
     private settings: () => AgentSettings,
     /** fetch for local servers; the desktop app routes these through Rust to avoid CORS. */
     private localFetch: typeof fetch = (...a) => fetch(...a),
+    /** Makes sure the local AI engine is running (the desktop app starts it on demand). */
+    private prepareLocal: () => Promise<void> = async () => {},
   ) {
     host.doc.onChange((e) => {
       if (this.running && e.source !== "ai") this.userEditedDuringRun = true;
@@ -116,6 +120,46 @@ export class Agent {
     this.stream?.abort();
   }
 
+  private localClient(s: AgentSettings): Anthropic {
+    // Ollama ignores the key but the SDK requires one.
+    return new Anthropic({ apiKey: "ollama", baseURL: s.localURL.replace(/\/+$/, ""), fetch: this.localFetch, dangerouslyAllowBrowser: true });
+  }
+
+  /**
+   * Local servers get the plain Messages API: no betas, caching or fallbacks,
+   * and no snapshot tool. The system prompt and tools always come first and
+   * never change, so the server can reuse its cached reading of them.
+   */
+  private localParams(s: AgentSettings, messages: Anthropic.MessageParam[], maxTokens = 8192): Anthropic.MessageCreateParamsNonStreaming {
+    return {
+      model: s.localModel,
+      max_tokens: maxTokens,
+      system: SYSTEM + LOCAL_NOTE,
+      tools: LOCAL_TOOLS,
+      messages,
+      thinking: s.localThinking ? { type: "enabled", budget_tokens: 4096 } : { type: "disabled" },
+    };
+  }
+
+  private warmed = "";
+  /**
+   * Local models read the long system prompt and tool list slowly on a CPU
+   * (minutes on older machines). Reading it once in the background, before
+   * the user asks for anything, lets the server answer from its cache later.
+   */
+  async warmUp(): Promise<void> {
+    const s = this.settings();
+    const key = `${s.localURL}|${s.localModel}|${s.localThinking ? 1 : 0}`;
+    if (s.provider !== "local" || this.running || this.warmed === key) return;
+    this.warmed = key;
+    try {
+      await this.prepareLocal();
+      await this.localClient(s).messages.create(this.localParams(s, [{ role: "user", content: "Ready?" }], 1));
+    } catch {
+      this.warmed = ""; // try again next time
+    }
+  }
+
   private sceneBlock(): Anthropic.Beta.BetaTextBlockParam {
     this.seenRevision = this.host.doc.revision;
     return { type: "text", text: `<scene>\n${describeScene(this.host.doc)}\n</scene>` };
@@ -128,10 +172,7 @@ export class Agent {
       this.ui.error("Add your Anthropic API key in Settings, or switch to a local model.");
       return;
     }
-    const client = local
-      ? // Ollama ignores the key but the SDK requires one.
-        new Anthropic({ apiKey: "ollama", baseURL: s.localURL.replace(/\/+$/, ""), fetch: this.localFetch, dangerouslyAllowBrowser: true })
-      : new Anthropic({ apiKey: s.apiKey, baseURL: s.baseURL || undefined, dangerouslyAllowBrowser: true });
+    const client = local ? this.localClient(s) : new Anthropic({ apiKey: s.apiKey, baseURL: s.baseURL || undefined, dangerouslyAllowBrowser: true });
     this.running = true;
     this.stopRequested = false;
     this.userEditedDuringRun = false;
@@ -141,19 +182,12 @@ export class Agent {
 
     let jsonRetries = 0;
     try {
+      if (local) await this.prepareLocal();
       while (!this.stopRequested) {
         // Haiku has no server-side fallback; the parameter is rejected there.
         const fallback = !s.model.includes("haiku");
         const stream = local
-          ? // Local servers get the plain Messages API: no betas, caching or
-            // fallbacks, and no snapshot tool (small models rarely handle images).
-            (client.messages.stream({
-              model: s.localModel,
-              max_tokens: 8192,
-              system: SYSTEM + LOCAL_NOTE,
-              tools: LOCAL_TOOLS,
-              messages: this.messages as Anthropic.MessageParam[],
-            }) as unknown as ReturnType<typeof client.beta.messages.stream>)
+          ? (client.messages.stream(this.localParams(s, this.messages as Anthropic.MessageParam[])) as unknown as ReturnType<typeof client.beta.messages.stream>)
           : client.beta.messages.stream({
           model: s.model,
           max_tokens: 32000,
@@ -175,10 +209,12 @@ export class Agent {
             if (ev.type === "content_block_start") {
               if (ev.content_block.type === "text") this.ui.text("", true);
               if (ev.content_block.type === "tool_use") this.ui.toolPending(ev.content_block.name);
+              // A local model's thinking is raw reasoning, not a progress note.
+              if (local && ev.content_block.type === "thinking") this.ui.progress("Thinking it through…");
               progress = "";
             } else if (ev.type === "content_block_delta") {
               if (ev.delta.type === "text_delta") this.ui.text(ev.delta.text, false);
-              else if (ev.delta.type === "thinking_delta") progress += ev.delta.thinking;
+              else if (ev.delta.type === "thinking_delta" && !local) progress += ev.delta.thinking;
             } else if (ev.type === "content_block_stop" && progress.trim()) {
               this.ui.progress(progress.trim());
               progress = "";
@@ -255,7 +291,7 @@ export class Agent {
         this.messages.push({ role: "user", content: results });
       }
     } catch (err) {
-      this.ui.error(describeError(err));
+      this.ui.error(describeError(err, local));
     } finally {
       if (this.stopRequested) this.ui.progress("Stopped. Everything built so far is kept.");
       this.running = false;
@@ -272,7 +308,9 @@ export class Agent {
   }
 }
 
-function describeError(err: unknown): string {
+function describeError(err: unknown, local: boolean): string {
+  if (local && err instanceof Anthropic.NotFoundError) return "That model isn't downloaded yet. Open Settings → Local model to install it.";
+  if (local && err instanceof Anthropic.APIConnectionError) return "Couldn't reach the local AI engine. Open Settings → Local model to install or start it.";
   if (err instanceof Anthropic.AuthenticationError) return "The API key was rejected. Check it in Settings.";
   if (err instanceof Anthropic.PermissionDeniedError) return "This API key can't use that model.";
   if (err instanceof Anthropic.NotFoundError) return "Model not found. Check the model name in Settings.";
