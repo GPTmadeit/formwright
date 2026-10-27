@@ -23,6 +23,13 @@ const FIELDS: Record<PrimitiveKind, [NumKey, string][]> = {
   revolve: [["sides", "Detail"]],
 };
 
+/** Closes the panel when it is shown as a bottom sheet (hidden on desktop). */
+function closeButton(): HTMLButtonElement {
+  const b = el("button", { className: "btn small sheet-close", textContent: "✕", ariaLabel: "Close" });
+  b.dataset.close = "";
+  return b;
+}
+
 const fmt = (v: number) => String(Math.round(v * 100) / 100);
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLElementTagNameMap[K]> & { className?: string } = {}, ...kids: (Node | string)[]): HTMLElementTagNameMap[K] {
@@ -82,7 +89,7 @@ export class Inspector {
     const ids = nodes.map((n) => n.id);
     const sameParent = nodes.every((n) => n.parent === nodes[0].parent);
     return [
-      el("div", { className: "title" }, el("strong", {}, `${nodes.length} shapes selected`)),
+      el("div", { className: "title" }, el("strong", {}, `${nodes.length} shapes selected`), closeButton()),
       el("p", { className: "hint" }, "Group them to merge solids and cut holes out."),
       el(
         "div",
@@ -109,7 +116,7 @@ export class Inspector {
     const hole = el("button", { className: `btn${n.hole ? " on" : ""}`, textContent: "Hole", title: "H", onclick: () => doc.update(n.id, { hole: true }) });
 
     const out: HTMLElement[] = [
-      el("div", { className: "title" }, name),
+      el("div", { className: "title" }, name, closeButton()),
       el("div", { className: "kind" }, n.type === "group" ? `Group of ${doc.children(n.id).length}` : KIND_LABELS[n.kind]),
       el("div", { className: "row2" }, solid, hole),
     ];

@@ -2,7 +2,7 @@ use base64::Engine;
 use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::str::FromStr;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, Runtime};
 use tauri_plugin_fs::{FilePath, FsExt, OpenOptions};
 
 fn err(e: impl std::fmt::Display) -> String {
@@ -42,7 +42,7 @@ fn save_settings(app: AppHandle, json: String) -> Result<(), String> {
 /// Writes a file the user picked in a save dialog. `path` is a filesystem
 /// path on desktop and a `content://` URI on Android.
 #[tauri::command]
-fn write_file(app: AppHandle, path: String, data_b64: String) -> Result<(), String> {
+fn write_file<R: Runtime>(app: AppHandle<R>, path: String, data_b64: String) -> Result<(), String> {
     let bytes = base64::engine::general_purpose::STANDARD.decode(data_b64).map_err(err)?;
     let mut opts = OpenOptions::new();
     opts.read(false).write(true).create(true).truncate(true);
@@ -54,7 +54,7 @@ fn write_file(app: AppHandle, path: String, data_b64: String) -> Result<(), Stri
 
 /// Reads a file the user picked in an open dialog (path or `content://` URI).
 #[tauri::command]
-fn read_text_file(app: AppHandle, path: String) -> Result<String, String> {
+fn read_text_file<R: Runtime>(app: AppHandle<R>, path: String) -> Result<String, String> {
     let mut opts = OpenOptions::new();
     opts.read(true);
     let source = FilePath::from_str(&path).map_err(err)?;
@@ -113,4 +113,30 @@ pub fn run() {
     #[cfg(mobile)]
     let builder = builder.invoke_handler(tauri::generate_handler![load_settings, save_settings, write_file, read_text_file]);
     builder.run(tauri::generate_context!()).expect("error while running Formwright");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn writes_and_reads_files_through_the_fs_plugin() {
+        let app = tauri::test::mock_builder()
+            .plugin(tauri_plugin_fs::init())
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        let dir = std::env::temp_dir().join(format!("formwright-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("model.formwright").to_string_lossy().into_owned();
+
+        let data = base64::engine::general_purpose::STANDARD.encode("{\"version\":1,\"nodes\":[]}");
+        write_file(app.handle().clone(), path.clone(), data).unwrap();
+        assert_eq!(read_text_file(app.handle().clone(), path.clone()).unwrap(), r#"{"version":1,"nodes":[]}"#);
+
+        // Saving again over a longer file must not leave its tail behind.
+        let short = base64::engine::general_purpose::STANDARD.encode("{}");
+        write_file(app.handle().clone(), path.clone(), short).unwrap();
+        assert_eq!(read_text_file(app.handle().clone(), path).unwrap(), "{}");
+        std::fs::remove_dir_all(dir).unwrap();
+    }
 }

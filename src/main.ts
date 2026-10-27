@@ -40,7 +40,36 @@ function select(ids: string[]): void {
   refreshPanels();
 }
 
+// --- panels as bottom sheets on small screens ---------------------------------------
+type Sheet = "shapes" | "objects" | "edit" | "chat";
+const compact = window.matchMedia("(max-width: 760px)");
+function setSheet(sheet: Sheet | null): void {
+  document.body.dataset.sheet = sheet ?? "";
+  document.querySelectorAll<HTMLButtonElement>("#tabbar [data-sheet]").forEach((b) => b.classList.toggle("on", b.dataset.sheet === sheet));
+  updateInset();
+}
+/** Keeps the model in view above whichever sheet is open. */
+function updateInset(): void {
+  const sheet = document.body.dataset.sheet;
+  const el = !compact.matches || !sheet ? null : sheet === "chat" ? document.querySelector(".chat") : sheet === "edit" ? $("inspector") : $("left-panel");
+  viewport.setBottomInset(el ? el.getBoundingClientRect().height : 0);
+}
+compact.addEventListener("change", updateInset);
+document.querySelectorAll<HTMLButtonElement>("#tabbar [data-sheet]").forEach((b) =>
+  b.addEventListener("click", () => {
+    const sheet = b.dataset.sheet as Sheet;
+    setSheet(document.body.dataset.sheet === sheet ? null : sheet);
+  }),
+);
+document.addEventListener("click", (e) => {
+  if ((e.target as Element).closest?.("[data-close]")) setSheet(null);
+});
+
+// Touch screens have no Shift key, so multi-select is a toggle.
+const multiPick = $<HTMLInputElement>("multi-pick");
+
 function toggleSelect(id: string | null, additive: boolean): void {
+  additive ||= multiPick.checked;
   if (!id) return select(additive ? selection : []);
   if (!additive) return select([id]);
   select(selection.includes(id) ? selection.filter((s) => s !== id) : [...selection, id]);
@@ -62,6 +91,9 @@ function refreshPanels(): void {
   inspector.render(selection);
   ($("undo") as HTMLButtonElement).disabled = !doc.canUndo();
   ($("redo") as HTMLButtonElement).disabled = !doc.canRedo();
+  const editTab = $<HTMLButtonElement>("tab-edit");
+  editTab.disabled = selection.length === 0;
+  if (!selection.length && document.body.dataset.sheet === "edit") setSheet(null);
 }
 
 // --- document changes --------------------------------------------------------
@@ -128,6 +160,8 @@ function addShape(item: PaletteItem, at?: [number, number]): void {
   const n = doc.addPrimitive({ kind: item.kind, hole: item.hole, name: item.hole ? item.label : undefined });
   if (x || y) doc.translate(n.id, [Math.round(x), Math.round(y), 0]);
   select([n.id]);
+  // On a phone, get the sheet out of the way so the new shape is visible.
+  if (compact.matches) setSheet(null);
 }
 
 renderPalette($("palette"), (item) => addShape(item));

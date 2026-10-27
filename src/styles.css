@@ -61,6 +61,7 @@
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body { height: 100%; margin: 0; }
+body { height: 100dvh; }
 body {
   background: var(--bg);
   color: var(--text);
@@ -72,6 +73,14 @@ body {
 h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 8px; font-weight: 600; }
 kbd { font: 11px ui-monospace, monospace; color: var(--muted); margin-left: auto; }
 .hint { color: var(--muted); font-size: 12px; margin: 0 0 10px; }
+.coarse-pointer, .sheet-close, .pick-several, .tabbar { display: none; }
+@media (pointer: coarse) {
+  .fine-pointer { display: none; }
+  .coarse-pointer { display: inline; }
+}
+.sheet-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.sheet-head h2 { margin: 0; margin-right: auto; }
+.pick-several { align-items: center; gap: 5px; font-size: 12px; color: var(--muted); }
 
 /* --- buttons ---------------------------------------------------------- */
 .btn {
@@ -256,4 +265,55 @@ dialog::backdrop { background: rgba(10, 15, 25, 0.4); }
 @media (max-width: 860px) {
   .layout { grid-template-columns: 150px minmax(0, 1fr) 260px; }
   .palette { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* --- phones and small tablets: viewport first, panels as bottom sheets --- */
+@media (max-width: 760px) {
+  :root { --tabbar-h: calc(56px + env(safe-area-inset-bottom)); }
+  .topbar { flex-wrap: nowrap; overflow-x: auto; gap: 6px; padding: 6px 8px; scrollbar-width: none; }
+  .topbar::-webkit-scrollbar { display: none; }
+  .topbar .btn { padding: 6px 9px; }
+  .brand { font-size: 0; gap: 0; margin-right: 0; flex: none; }
+  .snap, .view-extra { display: none; }
+  .layout { grid-template-columns: minmax(0, 1fr); }
+  .stage { padding-bottom: var(--tabbar-h); }
+  .viewport { bottom: var(--tabbar-h); }
+  .axes-hint { display: none; }
+  .toast { bottom: calc(var(--tabbar-h) + 14px); }
+
+  .tabbar {
+    display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+    height: var(--tabbar-h); padding-bottom: env(safe-area-inset-bottom);
+    background: var(--panel); border-top: 1px solid var(--border);
+  }
+  .tabbar button {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    background: none; border: 0; color: var(--muted); font: inherit; font-size: 11px; cursor: pointer;
+  }
+  .tabbar .ico { font-size: 18px; line-height: 1; }
+  .tabbar button.on { color: var(--accent); }
+  .tabbar button:disabled { opacity: 0.35; }
+
+  /* The three panels become sheets that slide up above the tab bar. */
+  .left, .chat, .inspector {
+    position: fixed; left: 0; right: 0; bottom: var(--tabbar-h); top: auto; z-index: 20;
+    width: auto; max-height: none; height: min(58dvh, 560px);
+    border: 1px solid var(--border); border-bottom: 0; border-radius: 14px 14px 0 0;
+    box-shadow: var(--shadow); background: var(--panel);
+    transform: translateY(calc(100% + var(--tabbar-h))); transition: transform 0.22s ease; visibility: hidden;
+  }
+  .left { padding: 12px; overflow: auto; }
+  .inspector { padding: 12px 14px; overflow: auto; }
+  .chat { height: min(48dvh, 520px); }
+  body[data-sheet="shapes"] .left,
+  body[data-sheet="objects"] .left,
+  body[data-sheet="chat"] .chat,
+  body[data-sheet="edit"] .inspector { transform: none; visibility: visible; }
+  body[data-sheet="shapes"] #sec-objects, body[data-sheet="objects"] #sec-shapes { display: none; }
+  body[data-sheet="objects"] #sec-objects { height: 100%; }
+  .sheet-close, .pick-several { display: inline-flex; }
+  .palette { grid-template-columns: repeat(4, 1fr); }
+  .shape-btn { cursor: pointer; }
+  .inspector .title .sheet-close { flex: none; }
+  .chat-input textarea { font-size: 16px; } /* stops iOS zooming into the field */
 }

@@ -77,7 +77,8 @@ export class Viewport {
     this.orbit.target.set(0, 0, 0);
 
     this.gizmo = new TransformControls(this.camera, this.renderer.domElement);
-    this.gizmo.setSize(0.9);
+    // Fingers need bigger handles than a mouse pointer.
+    this.gizmo.setSize(window.matchMedia("(pointer: coarse)").matches ? 1.35 : 0.9);
     this.scene.add(this.gizmo.getHelper());
     this.scene.add(this.proxy);
     this.gizmo.addEventListener("dragging-changed", (e) => {
@@ -104,8 +105,22 @@ export class Viewport {
     window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => this.applyTheme());
 
     const el = this.renderer.domElement;
-    el.addEventListener("pointerdown", (e) => (this.downAt = { x: e.clientX, y: e.clientY }));
+    // A tap selects; a drag, or any gesture that used two fingers, doesn't.
+    const down = new Set<number>();
+    let multiTouch = false;
+    el.addEventListener("pointerdown", (e) => {
+      down.add(e.pointerId);
+      if (down.size > 1) multiTouch = true;
+      this.downAt = { x: e.clientX, y: e.clientY };
+    });
+    el.addEventListener("pointercancel", (e) => down.delete(e.pointerId));
     el.addEventListener("pointerup", (e) => {
+      down.delete(e.pointerId);
+      if (multiTouch) {
+        if (down.size === 0) multiTouch = false;
+        this.downAt = null;
+        return;
+      }
       if (!this.downAt) return;
       const moved = Math.hypot(e.clientX - this.downAt.x, e.clientY - this.downAt.y);
       this.downAt = null;
@@ -162,11 +177,24 @@ export class Viewport {
     }
   }
 
+  private bottomInset = 0;
+
+  /**
+   * Pixels at the bottom of the viewport covered by a panel. The projection
+   * shifts up by half of it, so the model stays centred in the part you can see.
+   */
+  setBottomInset(px: number): void {
+    this.bottomInset = Math.max(0, px);
+    this.resize();
+  }
+
   private resize(): void {
     const w = this.host.clientWidth || 1;
     const h = this.host.clientHeight || 1;
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
+    if (this.bottomInset > 0) this.camera.setViewOffset(w, h, 0, this.bottomInset / 2, w, h);
+    else this.camera.clearViewOffset();
     this.camera.updateProjectionMatrix();
   }
 
@@ -427,6 +455,7 @@ export class Viewport {
   /** Renders the scene from a named view into a PNG (base64, no prefix). */
   snapshot(view: ViewName = "iso", size = 768): string {
     const cam = this.camera.clone();
+    cam.clearViewOffset(); // the on-screen sheet offset doesn't apply here
     cam.aspect = 1;
     const f = this.framing(view, this.sceneBounds(), 1);
     cam.position.copy(f.pos);

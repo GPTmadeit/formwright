@@ -47,9 +47,9 @@
       </label>
       <div class="seg">
         <button class="btn" data-view="iso" title="Home view">Home</button>
-        <button class="btn" data-view="top">Top</button>
-        <button class="btn" data-view="front">Front</button>
-        <button class="btn" data-view="right">Right</button>
+        <button class="btn view-extra" data-view="top">Top</button>
+        <button class="btn view-extra" data-view="front">Front</button>
+        <button class="btn view-extra" data-view="right">Right</button>
         <button class="btn" id="fit" title="Fit selection (F)">Fit</button>
       </div>
       <div class="spacer"></div>
@@ -58,14 +58,18 @@
     </header>
 
     <main class="layout">
-      <aside class="left panel">
-        <section>
-          <h2>Shapes</h2>
-          <p class="hint">Click to add, or drag onto the workplane.</p>
+      <aside class="left panel" id="left-panel">
+        <section id="sec-shapes">
+          <div class="sheet-head"><h2>Shapes</h2><button class="btn small sheet-close" data-close aria-label="Close">✕</button></div>
+          <p class="hint"><span class="fine-pointer">Click to add, or drag onto the workplane.</span><span class="coarse-pointer">Tap a shape to add it.</span></p>
           <div class="palette" id="palette"></div>
         </section>
-        <section class="tree-section">
-          <h2>Objects</h2>
+        <section class="tree-section" id="sec-objects">
+          <div class="sheet-head">
+            <h2>Objects</h2>
+            <label class="pick-several"><input type="checkbox" id="multi-pick" /> Pick several</label>
+            <button class="btn small sheet-close" data-close aria-label="Close">✕</button>
+          </div>
           <div class="tree" id="tree" role="tree"></div>
         </section>
       </aside>
@@ -82,6 +86,7 @@
           <h2>Assistant</h2>
           <span class="status" id="chat-status"></span>
           <button class="btn small" id="chat-new" title="Start a new conversation">New chat</button>
+          <button class="btn small sheet-close" data-close aria-label="Close">✕</button>
         </div>
         <div class="chat-log" id="chat-log" aria-live="polite"></div>
         <form class="chat-input" id="chat-form">
@@ -94,6 +99,13 @@
         </form>
       </aside>
     </main>
+
+    <nav class="tabbar" id="tabbar" aria-label="Panels">
+      <button data-sheet="shapes"><span class="ico" aria-hidden="true">◧</span>Shapes</button>
+      <button data-sheet="objects"><span class="ico" aria-hidden="true">☰</span>Objects</button>
+      <button data-sheet="edit" id="tab-edit"><span class="ico" aria-hidden="true">✎</span>Edit</button>
+      <button data-sheet="chat"><span class="ico" aria-hidden="true">✦</span>Assistant</button>
+    </nav>
 
     <dialog id="settings">
       <form method="dialog" class="settings">

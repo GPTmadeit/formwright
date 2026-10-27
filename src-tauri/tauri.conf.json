@@ -27,7 +27,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "category": "Graphics",
+    "category": "GraphicsAndDesign",
     "shortDescription": "Simple, open-source CAD with an AI assistant",
     "icon": [
       "icons/32x32.png",
@@ -41,6 +41,26 @@
       "webviewInstallMode": {
         "type": "downloadBootstrapper"
       }
+    },
+    "publisher": "Formwright contributors",
+    "copyright": "Copyright \u00a9 2026 Formwright contributors",
+    "license": "MIT OR Apache-2.0",
+    "homepage": "https://github.com/GPTmadeit/formwright",
+    "longDescription": "Build 3D models from simple shapes and holes, or describe what you want and watch an AI assistant build it step by step. Export STL for 3D printing.",
+    "macOS": {
+      "signingIdentity": "-",
+      "minimumSystemVersion": "11.0"
+    },
+    "linux": {
+      "deb": {
+        "section": "graphics"
+      },
+      "rpm": {
+        "release": "1"
+      }
+    },
+    "android": {
+      "minSdkVersion": 26
     }
   },
   "plugins": {

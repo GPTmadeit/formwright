@@ -214,6 +214,44 @@ for (const width of [940, 800]) {
 }
 await shot("06-narrow");
 
+// --- phone: bottom sheets, touch ---------------------------------------------------------
+await cdp("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
+await cdp("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 });
+await cdp("Page.reload");
+await waitFor(() => evaluate("!!window.__formwright"), "reboot as a phone");
+await evaluate(`__formwright.doc.clear(); __formwright.select([]); true`);
+const visible = (sel) => evaluate(`(() => { const e = document.querySelector(${JSON.stringify(sel)}); if (!e) return false; const r = e.getBoundingClientRect(); return getComputedStyle(e).visibility === "visible" && r.height > 0 && r.top < innerHeight && r.bottom > 0; })()`);
+check(await visible("#tabbar"), "phone: tab bar shows");
+check(!(await visible(".left")) && !(await visible(".chat")), "phone: panels start closed");
+check((await evaluate(`document.getElementById("tab-edit").disabled`)) === true, "phone: Edit is disabled with nothing selected");
+await evaluate(`document.querySelector('[data-sheet="shapes"]').click(); true`);
+await sleep(300);
+check(await visible("#sec-shapes"), "phone: Shapes sheet opens");
+await shot("07-phone-shapes");
+await evaluate(`document.querySelectorAll(".shape-btn")[2].click(); true`);
+await sleep(300);
+check((await evaluate(`__formwright.doc.roots().length`)) === 1 && (await evaluate(`document.body.dataset.sheet`)) === "", "phone: adding a shape closes the sheet");
+await evaluate(`document.querySelector('[data-sheet="edit"]').click(); true`);
+await sleep(300);
+check(await visible("#inspector"), "phone: Edit sheet shows the inspector");
+const sheetFitsExpr = `(() => { const r = document.getElementById("inspector").getBoundingClientRect(); const t = document.getElementById("tabbar").getBoundingClientRect(); return r.bottom <= t.top + 1 && r.left >= 0 && r.right <= innerWidth; })()`;
+// The sheet slides in; give it time to settle (software rendering is slow here).
+const sheetFits = await waitFor(() => evaluate(sheetFitsExpr), "edit sheet to settle", 5000).catch(() => false);
+check(sheetFits, "phone: Edit sheet sits above the tab bar");
+await shot("08-phone-edit");
+await evaluate(`document.querySelector("#inspector [data-close]").click(); true`);
+await sleep(300);
+check(!(await visible("#inspector")), "phone: close button hides the sheet");
+await evaluate(`document.querySelector('[data-sheet="chat"]').click(); true`);
+await sleep(300);
+check(await visible(".chat"), "phone: Assistant sheet opens");
+const phoneStart = requests.length;
+await send("add a sphere");
+await waitFor(() => requests.length > phoneStart, "phone chat request");
+await waitFor(() => evaluate(`!__formwright.agent.isRunning`), "phone run finishes", 20000);
+await shot("09-phone-chat");
+check((await evaluate(`document.documentElement.scrollWidth <= innerWidth`)) === true, "phone: no horizontal page scroll");
+
 check(errors.length === 0, `no page errors${errors.length ? `: ${errors.join(" | ")}` : ""}`);
 console.log(failures ? `\n${failures} failing` : "\nall passed");
 console.log(`screenshots: ${shots}`);
