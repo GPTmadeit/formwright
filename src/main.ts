@@ -1,12 +1,12 @@
 import "./styles.css";
 import wasmUrl from "manifold-3d/manifold.wasm?url";
-import { Agent, type AgentSettings, type Effort } from "./ai/agent";
+import { Agent, type AgentSettings, type Effort, type Provider } from "./ai/agent";
 import { buildNode, buildPrintable, initKernel, unionBounds } from "./geom/kernel";
 import { toBinarySTL, toOBJ } from "./geom/export";
 import { Doc } from "./model/doc";
 import { rotateNodes, scaleNodes } from "./model/transform";
 import type { SceneDoc, Vec3 } from "./model/types";
-import { checkForUpdate, loadSettings, openTextFile, saveFile, saveSettings } from "./platform";
+import { checkForUpdate, loadSettings, localFetch, openTextFile, saveFile, saveSettings } from "./platform";
 import { ChatView } from "./ui/chat";
 import { Inspector } from "./ui/inspector";
 import { DRAG_MIME, renderPalette, type PaletteItem } from "./ui/palette";
@@ -294,12 +294,13 @@ const agent = new Agent(
   },
   chat,
   () => settings,
+  localFetch,
 );
 
 function sendChat(text: string): void {
   const t = text.trim();
   if (!t) return;
-  if (!settings.apiKey) {
+  if (settings.provider === "anthropic" && !settings.apiKey) {
     openSettings();
     return;
   }
@@ -326,7 +327,17 @@ $("chat-new").addEventListener("click", () => {
 
 // --- settings ------------------------------------------------------------------
 const dlg = $<HTMLDialogElement>("settings");
+let provider: Provider = settings.provider;
+function showProvider(p: Provider): void {
+  provider = p;
+  dlg.querySelectorAll<HTMLButtonElement>("[data-provider]").forEach((b) => b.classList.toggle("on", b.dataset.provider === p));
+  dlg.querySelectorAll<HTMLElement>("[data-for]").forEach((el) => (el.hidden = el.dataset.for !== p));
+}
+dlg.querySelectorAll<HTMLButtonElement>("[data-provider]").forEach((b) => b.addEventListener("click", () => showProvider(b.dataset.provider as Provider)));
 function openSettings(): void {
+  showProvider(settings.provider);
+  $<HTMLInputElement>("set-local-url").value = settings.localURL;
+  $<HTMLInputElement>("set-local-model").value = settings.localModel;
   $<HTMLInputElement>("set-key").value = settings.apiKey;
   $<HTMLSelectElement>("set-model").value = settings.model;
   $<HTMLSelectElement>("set-effort").value = settings.effort;
@@ -340,6 +351,9 @@ dlg.addEventListener("close", async () => {
     apiKey: $<HTMLInputElement>("set-key").value.trim(),
     model: $<HTMLSelectElement>("set-model").value,
     effort: $<HTMLSelectElement>("set-effort").value as Effort,
+    provider,
+    localURL: $<HTMLInputElement>("set-local-url").value.trim() || "http://localhost:11434",
+    localModel: $<HTMLInputElement>("set-local-model").value.trim() || "qwen3-coder",
   };
   try {
     await saveSettings(settings);
@@ -359,6 +373,7 @@ try {
 viewport.sync();
 refreshPanels();
 viewport.setView("iso");
+chatText.focus();
 
 void checkForUpdate().then((u) => {
   if (!u) return;

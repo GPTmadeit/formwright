@@ -4,10 +4,16 @@ import { TOOLS, describeScene, runTool, type ToolHost } from "./tools";
 
 export type Effort = "low" | "medium" | "high" | "xhigh" | "max";
 
+export type Provider = "anthropic" | "local";
+
 export interface AgentSettings {
+  /** "local" talks to an Ollama server (or anything serving its Anthropic-compatible API). */
+  provider: Provider;
   apiKey: string;
   model: string;
   effort: Effort;
+  localURL: string;
+  localModel: string;
   /** Optional API endpoint override (a proxy, or the test server). */
   baseURL?: string;
 }
@@ -49,6 +55,14 @@ How to work:
 - After cutting holes or finishing a multi-part object, call view_snapshot once to check it looks right, and fix anything wrong.
 - Finish with one or two sentences on what you made and what they could tweak. If a request is ambiguous in a way that changes the design, ask one short question instead of guessing.`;
 
+const LOCAL_NOTE = "\n\nThe view_snapshot tool is not available in this session; check your work with get_scene and the returned bounds instead.";
+
+const LOCAL_TOOLS: Anthropic.Tool[] = TOOLS.filter((t) => t.name !== "view_snapshot").map(({ name, description, input_schema }) => ({
+  name,
+  description,
+  input_schema: input_schema as Anthropic.Tool.InputSchema,
+}));
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export class Agent {
@@ -65,6 +79,8 @@ export class Agent {
     private host: ToolHost & { doc: Doc },
     private ui: AgentUI,
     private settings: () => AgentSettings,
+    /** fetch for local servers; the desktop app routes these through Rust to avoid CORS. */
+    private localFetch: typeof fetch = (...a) => fetch(...a),
   ) {
     host.doc.onChange((e) => {
       if (this.running && e.source !== "ai") this.userEditedDuringRun = true;
@@ -107,11 +123,15 @@ export class Agent {
 
   private async run(first: string): Promise<void> {
     const s = this.settings();
-    if (!s.apiKey) {
-      this.ui.error("Add your Anthropic API key in Settings to talk to the assistant.");
+    const local = s.provider === "local";
+    if (!local && !s.apiKey) {
+      this.ui.error("Add your Anthropic API key in Settings, or switch to a local model.");
       return;
     }
-    const client = new Anthropic({ apiKey: s.apiKey, baseURL: s.baseURL || undefined, dangerouslyAllowBrowser: true });
+    const client = local
+      ? // Ollama ignores the key but the SDK requires one.
+        new Anthropic({ apiKey: "ollama", baseURL: s.localURL.replace(/\/+$/, ""), fetch: this.localFetch, dangerouslyAllowBrowser: true })
+      : new Anthropic({ apiKey: s.apiKey, baseURL: s.baseURL || undefined, dangerouslyAllowBrowser: true });
     this.running = true;
     this.stopRequested = false;
     this.userEditedDuringRun = false;
@@ -124,7 +144,17 @@ export class Agent {
       while (!this.stopRequested) {
         // Haiku has no server-side fallback; the parameter is rejected there.
         const fallback = !s.model.includes("haiku");
-        const stream = client.beta.messages.stream({
+        const stream = local
+          ? // Local servers get the plain Messages API: no betas, caching or
+            // fallbacks, and no snapshot tool (small models rarely handle images).
+            (client.messages.stream({
+              model: s.localModel,
+              max_tokens: 8192,
+              system: SYSTEM + LOCAL_NOTE,
+              tools: LOCAL_TOOLS,
+              messages: this.messages as Anthropic.MessageParam[],
+            }) as unknown as ReturnType<typeof client.beta.messages.stream>)
+          : client.beta.messages.stream({
           model: s.model,
           max_tokens: 32000,
           system: SYSTEM,
@@ -248,7 +278,7 @@ function describeError(err: unknown): string {
   if (err instanceof Anthropic.NotFoundError) return "Model not found. Check the model name in Settings.";
   if (err instanceof Anthropic.RateLimitError) return "Rate limited by the API. Wait a moment and try again.";
   if (err instanceof Anthropic.BadRequestError) return `The API rejected the request: ${err.message}`;
-  if (err instanceof Anthropic.APIConnectionError) return "Couldn't reach the API. Check your internet connection.";
+  if (err instanceof Anthropic.APIConnectionError) return "Couldn't reach the model server. Check your connection, or that Ollama is running for local models.";
   if (err instanceof Anthropic.APIError) return `API error ${err.status ?? ""}: ${err.message}`;
   return err instanceof Error ? err.message : String(err);
 }

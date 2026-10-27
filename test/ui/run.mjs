@@ -187,6 +187,21 @@ check(after.at(-1).role === "user" && JSON.stringify(after.at(-1)).includes("car
 await evaluate(`__formwright.agent.stop(); true`);
 await waitFor(() => evaluate(`!__formwright.agent.isRunning`), "agent stops again");
 
+// --- local model (Ollama-compatible) ---------------------------------------------------
+await evaluate(`localStorage.setItem("formwright.settings", JSON.stringify({ provider: "local", apiKey: "", localURL: "http://127.0.0.1:8791/", localModel: "qwen3-coder" })); true`);
+await cdp("Page.reload");
+await waitFor(() => evaluate("!!window.__formwright"), "reboot in local mode");
+const localStart = requests.length;
+await send("a cube");
+await waitFor(() => requests.length > localStart, "local request");
+const lr = requests[localStart];
+check(lr.body.model === "qwen3-coder", "local mode uses the local model name");
+check(!lr.url.includes("beta") && !lr.headers["anthropic-beta"], "local mode sends no beta flags");
+check(!("thinking" in lr.body) && !("cache_control" in lr.body) && !("fallbacks" in lr.body), "local mode sends a plain request");
+check(!lr.body.tools.some((t) => t.name === "view_snapshot"), "local mode drops the snapshot tool");
+await waitFor(() => evaluate(`!__formwright.agent.isRunning`), "local run finishes", 20000);
+check((await evaluate(`__formwright.doc.roots().length`)) >= 1, "local model can build shapes");
+
 // --- narrow window (tiling window managers ignore minWidth) ---------------------------
 for (const width of [940, 800]) {
   await cdp("Emulation.setDeviceMetricsOverride", { width, height: 900, deviceScaleFactor: 1, mobile: false });

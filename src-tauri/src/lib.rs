@@ -54,6 +54,7 @@ fn read_text_file(path: String) -> Result<String, String> {
 pub fn run() {
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_process::init());
     #[cfg(desktop)]
     let builder = builder.plugin(tauri_plugin_updater::Builder::new().build());

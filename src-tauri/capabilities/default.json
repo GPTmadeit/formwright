@@ -1,7 +1,29 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Main window: core APIs, file dialogs, updates and relaunch.",
-  "windows": ["main"],
-  "permissions": ["core:default", "dialog:allow-open", "dialog:allow-save", "updater:default", "process:allow-restart"]
+  "description": "Main window: core APIs, file dialogs, updates, relaunch, and HTTP to local model servers.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "dialog:allow-open",
+    "dialog:allow-save",
+    "updater:default",
+    "process:allow-restart",
+    {
+      "identifier": "http:default",
+      "allow": [
+        {
+          "url": "http://localhost:*/*"
+        },
+        {
+          "url": "http://127.0.0.1:*/*"
+        },
+        {
+          "url": "http://*:11434/*"
+        }
+      ]
+    }
+  ]
 }

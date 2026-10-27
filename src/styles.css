@@ -244,6 +244,9 @@ dialog::backdrop { background: rgba(10, 15, 25, 0.4); }
 .settings { padding: 18px; display: flex; flex-direction: column; gap: 10px; }
 .settings h2 { font-size: 14px; text-transform: none; letter-spacing: 0; color: var(--text); }
 .settings label { display: flex; flex-direction: column; gap: 4px; }
+.settings .provider .btn { flex: 1; }
+.settings > div[data-for] { display: flex; flex-direction: column; gap: 10px; }
+.settings code { font: 12px ui-monospace, monospace; background: var(--panel-2); padding: 1px 4px; border-radius: 4px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
 
 @media (max-width: 1100px) {

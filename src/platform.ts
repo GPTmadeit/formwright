@@ -10,7 +10,21 @@ async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T
 }
 
 const SETTINGS_KEY = "formwright.settings";
-export const DEFAULT_SETTINGS: AgentSettings = { apiKey: "", model: "claude-opus-5-5", effort: "medium" };
+export const DEFAULT_SETTINGS: AgentSettings = {
+  provider: "anthropic",
+  apiKey: "",
+  model: "claude-opus-5-5",
+  effort: "medium",
+  localURL: "http://localhost:11434",
+  localModel: "qwen3-coder",
+};
+
+/** fetch for local model servers. On desktop it goes through Rust, so CORS never applies. */
+export const localFetch: typeof fetch = async (input, init) => {
+  if (!isTauri) return fetch(input, init);
+  const { fetch: tauriFetch } = await import("@tauri-apps/plugin-http");
+  return tauriFetch(input, init);
+};
 
 export async function loadSettings(): Promise<AgentSettings> {
   try {
