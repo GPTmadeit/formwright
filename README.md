@@ -11,7 +11,7 @@ Build with shapes and holes, like Tinkercad, or describe what you want and watch
 - **Shapes:** box (with rounded edges), cylinder, cone, sphere, torus, wedge, tube, polygon extrusion, revolve (lathe profile).
 - **Holes and groups:** mark any shape as a hole, then group it with solids to cut it out. Groups nest, move and rotate as one object.
 - **Direct editing:** move, rotate and scale gizmo with snapping, exact numbers in the inspector, arrow-key nudging, undo and redo.
-- **Assistant:** streams progress notes, shows each step as a clickable chip, takes interjections between steps, checks its own work by looking at rendered views, and makes every step undoable.
+- **Assistant:** Claude, or a free local model through Ollama. It streams progress notes, shows each step as a clickable chip, takes interjections between steps, checks its own work by looking at rendered views, and makes every step undoable.
 - **Export:** STL for 3D printing and OBJ. Scenes save as `.formwright` (JSON).
 - **Desktop app** for Linux, Windows and macOS that updates itself from GitHub releases.
 
@@ -21,7 +21,12 @@ Download the latest build from [Releases](https://github.com/GPTmadeit/formwrigh
 
 ## The assistant
 
-The assistant uses Claude through the Anthropic API. Open **Settings**, paste an API key from [console.anthropic.com](https://console.anthropic.com/), and choose a model and effort level. The key is stored only on your computer, in your user config directory, readable only by you. Usage is billed by Anthropic to your account. Everything except the assistant works without a key.
+Open **Settings** and choose how the assistant runs:
+
+- **Claude (Anthropic API):** the best results. Paste an API key from [console.anthropic.com](https://console.anthropic.com/) and pick a model and effort level. The key is stored only on your computer, in your user config directory, readable only by you. Anthropic bills your account for usage.
+- **Local model (free):** runs on your own machine through [Ollama](https://ollama.com). Install Ollama, run `ollama pull qwen3-coder` (or pull any model with tool calling), and enter the model name. It's slower and less precise than Claude, and it can't look at renders to check its work, but it costs nothing and nothing leaves your computer. Pointing it at another machine's Ollama (`http://<host>:11434`) also works.
+
+Everything except the assistant works with neither.
 
 ## Shortcuts
 
